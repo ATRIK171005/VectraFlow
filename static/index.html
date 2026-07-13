@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise VRPTW Engine — FTL/LTL Logistics Optimization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: '#0A0E17',
+                        surface: '#111827',
+                        card: '#1A2333',
+                        emeraldAccent: '#00F0A3',
+                        cyanAccent: '#00E5FF',
+                        amberAccent: '#FFB800',
+                        roseAccent: '#FF4B72',
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0A0E17;
+            color: #E2E8F0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .glass-card {
+            background: rgba(26, 35, 51, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            transition: all 0.25s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(0, 240, 163, 0.35);
+            box-shadow: 0 10px 30px -10px rgba(0, 240, 163, 0.15);
+        }
+        .glow-emerald {
+            box-shadow: 0 0 25px rgba(0, 240, 163, 0.3);
+        }
+        .glow-cyan {
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.3);
+        }
+        /* Canvas wrapper styling */
+        #mapCanvas {
+            border-radius: 12px;
+            background: radial-gradient(circle at center, #131E2F 0%, #0C121D 100%);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0A0E17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E293B;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00F0A3;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-6 space-y-6 max-w-[1700px] mx-auto">
+
+    <!-- Top Command Header -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between glass-card p-5 gap-4 border-l-4 border-l-emeraldAccent">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-emeraldAccent/20 to-cyanAccent/20 border border-emeraldAccent/40 flex items-center justify-center glow-emerald">
+                <span class="material-symbols-outlined text-emeraldAccent text-2xl">local_shipping</span>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white">VRPTW FTL/LTL Enterprise Dispatch Command</h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-emeraldAccent/15 text-emeraldAccent border border-emeraldAccent/30">Google OR-Tools Engine</span>
+                </div>
+                <p class="text-sm text-slate-400 mt-0.5">Sequential Dual-Dimension (`Capacity` + `Time Windows`) Optimization vs Pure Point-to-Point Linear Allocation</p>
+            </div>
+        </div>
+
+        <!-- Scenario Selector Buttons -->
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="loadScenario('corridor')" id="btn-corridor" class="px-3.5 py-2 rounded-lg text-xs font-semibold font-mono bg-emeraldAccent text-obsidian shadow-lg shadow-emeraldAccent/20 flex items-center gap-1.5 transition">
+                <span class="material-symbols-outlined text-sm">factory</span>
+                National Industrial Corridor
+            </button>
+            <button onclick="loadScenario('pharma')" id="btn-pharma" class="px-3.5 py-2 rounded-lg text-xs font-semibold font-mono bg-card text-slate-300 hover:text-white border border-white/10 flex items-center gap-1.5 transition">
+                <span class="material-symbols-outlined text-sm">vaccines</span>
+                Cold-Chain Pharma
+            </button>
+            <button onclick="loadScenario('lastmile')" id="btn-lastmile" class="px-3.5 py-2 rounded-lg text-xs font-semibold font-mono bg-card text-slate-300 hover:text-white border border-white/10 flex items-center gap-1.5 transition">
+                <span class="material-symbols-outlined text-sm">shopping_bag</span>
+                Urban Last-Mile Fleet
+            </button>
+        </div>
+    </header>
+
+    <!-- Executive KPI Dashboard -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="glass-card p-4 relative overflow-hidden group">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Optimal Fleet Distance</div>
+            <div class="text-2xl font-bold font-mono text-white mt-1 flex items-baseline gap-2">
+                <span id="kpi-dist">-- km</span>
+                <span id="kpi-dist-save" class="text-xs text-emeraldAccent font-semibold px-1.5 py-0.5 bg-emeraldAccent/10 rounded">--% saved</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1" id="kpi-dist-base">vs -- km Unoptimized Baseline</div>
+        </div>
+
+        <div class="glass-card p-4 relative overflow-hidden group">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Freight Cost Savings</div>
+            <div class="text-2xl font-bold font-mono text-emeraldAccent mt-1" id="kpi-cost-save">₹ --</div>
+            <div class="text-[11px] text-slate-500 mt-1" id="kpi-cost-compare">Optimal: ₹ -- vs Baseline: ₹ --</div>
+        </div>
+
+        <div class="glass-card p-4 relative overflow-hidden group">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Active Fleet Trucks</div>
+            <div class="text-2xl font-bold font-mono text-cyanAccent mt-1" id="kpi-trucks">-- / -- Trucks</div>
+            <div class="text-[11px] text-slate-500 mt-1" id="kpi-util">--% Average Carrying Capacity Utilized</div>
+        </div>
+
+        <div class="glass-card p-4 relative overflow-hidden group">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">Time Window Compliance</div>
+            <div class="text-2xl font-bold font-mono text-emeraldAccent mt-1 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-xl">verified</span>
+                <span id="kpi-tw">100% On-Time</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1">Zero Dock Bottlenecks or Demurrage</div>
+        </div>
+
+        <div class="glass-card p-4 relative overflow-hidden group border-l-2 border-l-cyanAccent">
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">OR-Tools Solver Engine</div>
+            <div class="text-2xl font-bold font-mono text-white mt-1" id="kpi-latency">-- ms</div>
+            <div class="text-[11px] text-cyanAccent mt-1 font-mono">pywrapcp Guided Local Search</div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Split -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Left: Interactive Map Canvas & Animation Controls (7 cols) -->
+        <div class="lg:col-span-7 glass-card p-5 flex flex-col space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emeraldAccent">map</span>
+                        Regional Fleet Route & Multi-Stop Loop Visualizer
+                    </h2>
+                    <p class="text-xs text-slate-400" id="scenario-desc">Loading scenario details...</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="startAnimation()" id="btn-animate" class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-cyanAccent/15 text-cyanAccent hover:bg-cyanAccent hover:text-obsidian border border-cyanAccent/40 flex items-center gap-1 transition">
+                        <span class="material-symbols-outlined text-base">play_arrow</span>
+                        Animate Fleet Dispatch
+                    </button>
+                    <button onclick="reOptimize()" class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-emeraldAccent/20 text-emeraldAccent hover:bg-emeraldAccent hover:text-obsidian border border-emeraldAccent/50 flex items-center gap-1 transition">
+                        <span class="material-symbols-outlined text-base">refresh</span>
+                        Re-Optimize
+                    </button>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden">
+                <canvas id="mapCanvas" width="800" height="600" class="w-full h-full object-contain cursor-crosshair"></canvas>
+                
+                <!-- Legend Overlay -->
+                <div class="absolute bottom-3 right-3 bg-obsidian/90 border border-white/10 backdrop-blur-md rounded-lg p-3 text-xs space-y-1.5 shadow-2xl">
+                    <div class="font-mono font-semibold text-slate-300 pb-1 border-b border-white/10">Network Map Legend</div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-cyanAccent border border-white"></span>
+                        <span class="text-slate-300">Origin Depot Hub (w₀)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-emeraldAccent border border-white"></span>
+                        <span class="text-slate-300">Customer Docks [Time Windows]</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-1.5 rounded bg-gradient-to-r from-emeraldAccent to-cyanAccent"></span>
+                        <span class="text-slate-300">Synchronized FTL/LTL Route Loops</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Why VRPTW Explanation -->
+            <div class="p-3.5 rounded-xl bg-surface/80 border border-white/5 text-xs text-slate-300 space-y-1">
+                <div class="font-semibold text-emeraldAccent flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm">psychology</span>
+                    Network Flow Optimization vs Facility Assignment Gap Analysis:
+                </div>
+                <p class="leading-relaxed text-slate-400">
+                    While linear transportation models (`SCIP`) assign optimal bulk volume between origin-destination pairs, they do not order stops. If applied to physical delivery trucks, naive unguided dispatch yields <b class="text-roseAccent">deadhead return mileage</b> and misses tight customer receiving windows. Our <b class="text-white font-mono">pywrapcp.RoutingModel</b> constructs multi-stop loops (`Depot ➔ A ➔ B ➔ Depot`) that simultaneously respect <b class="text-cyanAccent">Truck TEU Limits</b> (`AddDimensionWithVehicleCapacity`) and strict <b class="text-emeraldAccent">Delivery Time Windows</b> (`AddDimension`).
+                </p>
+            </div>
+        </div>
+
+        <!-- Right: Fleet Parameter Controls & Stop Schedule (5 cols) -->
+        <div class="lg:col-span-5 flex flex-col space-y-6">
+
+            <!-- Fleet Parameter Control Command -->
+            <div class="glass-card p-5 space-y-4">
+                <h3 class="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-2.5">
+                    <span class="material-symbols-outlined text-cyanAccent">tune</span>
+                    Regional Fleet & Parameter Setup
+                </h3>
+
+                <div class="space-y-3.5 text-xs">
+                    <div>
+                        <div class="flex justify-between font-mono text-slate-300 mb-1">
+                            <span>Available Local Delivery Fleet:</span>
+                            <span id="label-trucks" class="text-emeraldAccent font-bold">4 Trucks</span>
+                        </div>
+                        <input type="range" id="input-trucks" min="1" max="6" value="4" oninput="updateParamLabels()" onchange="reOptimize()" class="w-full accent-emeraldAccent cursor-pointer bg-slate-800 h-2 rounded-lg">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between font-mono text-slate-300 mb-1">
+                            <span>Truck Carrying Capacity (TEUs):</span>
+                            <span id="label-cap" class="text-cyanAccent font-bold">450 TEUs</span>
+                        </div>
+                        <input type="range" id="input-cap" min="200" max="600" step="50" value="450" oninput="updateParamLabels()" onchange="reOptimize()" class="w-full accent-cyanAccent cursor-pointer bg-slate-800 h-2 rounded-lg">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between font-mono text-slate-300 mb-1">
+                            <span>Average Fleet Transit Speed:</span>
+                            <span id="label-speed" class="text-amberAccent font-bold">60 km/h</span>
+                        </div>
+                        <input type="range" id="input-speed" min="35" max="85" step="5" value="60" oninput="updateParamLabels()" onchange="reOptimize()" class="w-full accent-amberAccent cursor-pointer bg-slate-800 h-2 rounded-lg">
+                    </div>
+                </div>
+
+                <button onclick="reOptimize()" class="w-full py-2.5 rounded-xl font-mono text-xs font-bold bg-gradient-to-r from-emeraldAccent to-cyanAccent text-obsidian shadow-lg hover:opacity-90 transition flex items-center justify-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">rocket_launch</span>
+                    Execute OR-Tools Guided Local Search
+                </button>
+            </div>
+
+            <!-- Stop-by-Stop Dispatch & Time-Window Schedule -->
+            <div class="glass-card p-5 flex-1 flex flex-col space-y-3 max-h-[520px] overflow-hidden">
+                <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amberAccent">schedule</span>
+                        Stop-by-Stop Dispatch Schedule
+                    </h3>
+                    <span class="text-[11px] font-mono text-slate-400">Shift Start: 08:00 AM</span>
+                </div>
+
+                <div class="overflow-y-auto pr-1 space-y-2 flex-1" id="schedule-list">
+                    <div class="text-center py-8 text-slate-500 text-xs font-mono">Running solver engine...</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bottom: Route Itinerary Summary Cards -->
+    <div class="glass-card p-5 space-y-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+            <span class="material-symbols-outlined text-emeraldAccent">route</span>
+            Active Fleet Route Itineraries & Utilization Summary
+        </h3>
+        <div id="route-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="text-center py-6 text-slate-500 text-xs font-mono col-span-full">Generating optimized routes...</div>
+        </div>
+    </div>
+
+    <!-- Javascript Engine & Canvas Rendering -->
+    <script>
+        let currentScenarioKey = 'corridor';
+        let currentScenarioData = null;
+        let lastOptimizationResult = null;
+        let animationFrameId = null;
+        let animationProgress = 0.0;
+
+        async function init() {
+            await loadScenario('corridor');
+        }
+
+        function updateParamLabels() {
+            document.getElementById('label-trucks').textContent = `${document.getElementById('input-trucks').value} Trucks`;
+            document.getElementById('label-cap').textContent = `${document.getElementById('input-cap').value} TEUs`;
+            document.getElementById('label-speed').textContent = `${document.getElementById('input-speed').value} km/h`;
+        }
+
+        async function loadScenario(key) {
+            currentScenarioKey = key;
+            
+            // Update button highlights
+            ['corridor', 'pharma', 'lastmile'].forEach(k => {
+                const btn = document.getElementById(`btn-${k}`);
+                if (k === key) {
+                    btn.className = "px-3.5 py-2 rounded-lg text-xs font-semibold font-mono bg-emeraldAccent text-obsidian shadow-lg shadow-emeraldAccent/20 flex items-center gap-1.5 transition";
+                } else {
+                    btn.className = "px-3.5 py-2 rounded-lg text-xs font-semibold font-mono bg-card text-slate-300 hover:text-white border border-white/10 flex items-center gap-1.5 transition";
+                }
+            });
+
+            try {
+                const resp = await fetch('/api/scenarios');
+                const scenarios = await resp.json();
+                currentScenarioData = scenarios[key];
+
+                document.getElementById('scenario-desc').textContent = currentScenarioData.description;
+                document.getElementById('input-trucks').value = currentScenarioData.num_vehicles;
+                document.getElementById('input-cap').value = currentScenarioData.vehicle_capacity;
+                document.getElementById('input-speed').value = currentScenarioData.vehicle_speed_kmh;
+                updateParamLabels();
+
+                await reOptimize();
+            } catch (err) {
+                console.error("Failed to load scenario:", err);
+            }
+        }
+
+        async function reOptimize() {
+            if (!currentScenarioData) return;
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            const payload = {
+                depot_name: currentScenarioData.depot_name,
+                customers: currentScenarioData.customers,
+                num_vehicles: parseInt(document.getElementById('input-trucks').value),
+                vehicle_capacity: parseInt(document.getElementById('input-cap').value),
+                vehicle_speed_kmh: parseFloat(document.getElementById('input-speed').value)
+            };
+
+            try {
+                const resp = await fetch('/api/optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                lastOptimizationResult = data;
+
+                renderUI(data);
+                drawMap(data, 0.0);
+            } catch (err) {
+                console.error("Optimization failed:", err);
+            }
+        }
+
+        function renderUI(data) {
+            if (data.status !== "OPTIMAL") {
+                alert(`Optimization Status: ${data.status}\nMessage: ${data.message || 'Infeasible parameters.'}`);
+                return;
+            }
+
+            const m = data.metrics;
+            document.getElementById('kpi-dist').textContent = `${m.total_distance_km} km`;
+            document.getElementById('kpi-dist-save').textContent = `📉 ${m.distance_savings_pct}% saved`;
+            document.getElementById('kpi-dist-base').textContent = `vs ${m.naive_distance_km} km Unoptimized Baseline`;
+
+            document.getElementById('kpi-cost-save').textContent = `₹ ${m.cost_savings_inr.toLocaleString('en-IN')}`;
+            document.getElementById('kpi-cost-compare').textContent = `Optimal: ₹ ${m.cost_optimal_inr.toLocaleString('en-IN')} vs Baseline: ₹ ${m.cost_baseline_inr.toLocaleString('en-IN')}`;
+
+            document.getElementById('kpi-trucks').textContent = `${m.active_trucks} / ${m.total_trucks} Trucks`;
+            document.getElementById('kpi-util').textContent = `${m.avg_fleet_utilization_pct}% Average Carrying Capacity Utilized`;
+
+            document.getElementById('kpi-latency').textContent = `${data.solve_time_ms} ms`;
+
+            // Render Schedule List
+            const schedContainer = document.getElementById('schedule-list');
+            schedContainer.innerHTML = '';
+
+            data.schedule.forEach(item => {
+                const el = document.createElement('div');
+                el.className = "p-3 rounded-xl bg-surface border border-white/5 flex items-center justify-between hover:border-white/15 transition text-xs";
+                el.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="w-2.5 h-8 rounded-full" style="background-color: ${item.truck_color}"></span>
+                        <div>
+                            <div class="font-bold text-white flex items-center gap-2">
+                                <span>#${item.stop_seq} ${item.customer_name}</span>
+                                <span class="px-1.5 py-0.2 rounded font-mono text-[10px] bg-slate-800 text-slate-300 border border-white/5">${item.truck_id}</span>
+                            </div>
+                            <div class="text-slate-400 font-mono text-[11px] mt-0.5">Window: <b class="text-amberAccent">${item.time_window_str}</b> | Demand: <b>${item.demand_teus} TEUs</b></div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-emeraldAccent font-mono font-bold text-sm">${item.arrival_clock}</div>
+                        <div class="text-[10px] text-emeraldAccent font-semibold">${item.status}</div>
+                    </div>
+                `;
+                schedContainer.appendChild(el);
+            });
+
+            // Render Route Summary Cards
+            const cardsContainer = document.getElementById('route-cards');
+            cardsContainer.innerHTML = '';
+
+            data.routes.forEach(route => {
+                const el = document.createElement('div');
+                el.className = "p-4 rounded-xl bg-surface border border-white/10 flex flex-col justify-between space-y-3 relative overflow-hidden";
+                el.style.borderLeftColor = route.color;
+                el.style.borderLeftWidth = "4px";
+                el.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between pb-2 border-b border-white/10">
+                            <span class="font-mono font-bold text-white text-sm" style="color: ${route.color}">${route.vehicle_id}</span>
+                            <span class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">${route.distance_km} km</span>
+                        </div>
+                        <div class="text-xs text-slate-300 mt-2 font-mono leading-relaxed break-words">${route.route_summary}</div>
+                    </div>
+                    <div class="space-y-1 pt-2 border-t border-white/5 text-[11px] font-mono">
+                        <div class="flex justify-between text-slate-400">
+                            <span>Delivered Load:</span>
+                            <span class="text-white font-bold">${route.load_delivered_teus} / ${route.capacity_teus} TEUs</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full" style="width: ${route.utilization_pct}%; background-color: ${route.color}"></div>
+                        </div>
+                        <div class="flex justify-between text-slate-400 pt-1">
+                            <span>Return to Depot:</span>
+                            <span class="text-emeraldAccent font-semibold">${route.return_time_clock}</span>
+                        </div>
+                    </div>
+                `;
+                cardsContainer.appendChild(el);
+            });
+        }
+
+        function drawMap(data, progress = 0.0) {
+            const canvas = document.getElementById('mapCanvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            if (!data || data.status !== "OPTIMAL") return;
+
+            // Draw grid lines
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+            ctx.lineWidth = 1;
+            for (let x = 0; x < w; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            // Draw Routes
+            data.routes.forEach(route => {
+                const coords = route.path_coords;
+                if (!coords || coords.length < 2) return;
+
+                ctx.strokeStyle = route.color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 3]);
+                ctx.beginPath();
+                ctx.moveTo(coords[0][0], coords[0][1]);
+                for (let i = 1; i < coords.length; i++) {
+                    ctx.lineTo(coords[i][0], coords[i][1]);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // If animating, draw moving truck dots along route segments
+                if (progress > 0) {
+                    const totalSegs = coords.length - 1;
+                    const scaledProg = progress * totalSegs;
+                    const segIndex = Math.min(Math.floor(scaledProg), totalSegs - 1);
+                    const segFraction = scaledProg - segIndex;
+
+                    const p1 = coords[segIndex];
+                    const p2 = coords[segIndex + 1];
+                    const tx = p1[0] + (p2[0] - p1[0]) * segFraction;
+                    const ty = p1[1] + (p2[1] - p1[1]) * segFraction;
+
+                    // Glowing truck dot
+                    ctx.fillStyle = route.color;
+                    ctx.shadowColor = route.color;
+                    ctx.shadowBlur = 15;
+                    ctx.beginPath();
+                    ctx.arc(tx, ty, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    // Truck badge label
+                    ctx.fillStyle = "#0A0E17";
+                    ctx.font = "bold 9px JetBrains Mono";
+                    ctx.fillText(route.vehicle_id, tx - 14, ty - 10);
+                }
+            });
+
+            // Draw Customer Stops
+            data.all_nodes.forEach(node => {
+                const [cx, cy] = node.coords;
+
+                if (node.id === 0) {
+                    // Depot Hub Node
+                    ctx.fillStyle = "#00E5FF";
+                    ctx.shadowColor = "#00E5FF";
+                    ctx.shadowBlur = 20;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    ctx.strokeStyle = "#FFFFFF";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.font = "bold 12px Plus Jakarta Sans";
+                    ctx.fillText("⚓ Central Hub Depot", cx + 16, cy + 4);
+                } else {
+                    // Customer Dock Node
+                    ctx.fillStyle = "#1A2333";
+                    ctx.strokeStyle = "#00F0A3";
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Node ID inside dot
+                    ctx.fillStyle = "#00F0A3";
+                    ctx.font = "bold 9px JetBrains Mono";
+                    ctx.fillText(node.id, cx - 3, cy + 3);
+
+                    // Stop Name & Demand Label
+                    ctx.fillStyle = "#E2E8F0";
+                    ctx.font = "600 11px Plus Jakarta Sans";
+                    ctx.fillText(`${node.name} (${node.demand} TEUs)`, cx + 14, cy - 2);
+
+                    // Time Window Badge
+                    ctx.fillStyle = "#FFB800";
+                    ctx.font = "10px JetBrains Mono";
+                    const tw = node.time_window;
+                    ctx.fillText(`[${minToClock(tw[0])} - ${minToClock(tw[1])}]`, cx + 14, cy + 11);
+                }
+            });
+        }
+
+        function minToClock(mins) {
+            let total = 8 * 60 + mins;
+            let hr = Math.floor(total / 60) % 24;
+            let mn = total % 60;
+            let period = hr < 12 ? "AM" : "PM";
+            let dHr = hr <= 12 ? hr : hr - 12;
+            if (dHr === 0) dHr = 12;
+            return `${dHr.toString().padStart(2, '0')}:${mn.toString().padStart(2, '0')} ${period}`;
+        }
+
+        function startAnimation() {
+            if (!lastOptimizationResult) return;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            let startTimestamp = null;
+            const durationMs = 4500; // 4.5 seconds per loop cycle
+
+            function step(timestamp) {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const elapsed = timestamp - startTimestamp;
+                animationProgress = (elapsed % durationMs) / durationMs;
+
+                drawMap(lastOptimizationResult, animationProgress);
+                animationFrameId = requestAnimationFrame(step);
+            }
+
+            animationFrameId = requestAnimationFrame(step);
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

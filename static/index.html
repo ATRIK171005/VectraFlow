@@ -162,7 +162,11 @@
                     </h2>
                     <p class="text-xs text-slate-400" id="scenario-desc">Loading scenario details...</p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="toggleMapClickMode()" id="btn-map-mode" class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-amberAccent/15 text-amberAccent hover:bg-amberAccent hover:text-obsidian border border-amberAccent/40 flex items-center gap-1 transition">
+                        <span class="material-symbols-outlined text-base">add_location_alt</span>
+                        Click Map to Add Stop: OFF
+                    </button>
                     <button onclick="startAnimation()" id="btn-animate" class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-cyanAccent/15 text-cyanAccent hover:bg-cyanAccent hover:text-obsidian border border-cyanAccent/40 flex items-center gap-1 transition">
                         <span class="material-symbols-outlined text-base">play_arrow</span>
                         Animate Fleet Dispatch
@@ -250,6 +254,81 @@
                 </button>
             </div>
 
+            <!-- Interactive Customer Dock Builder -->
+            <div class="glass-card p-5 space-y-3.5 border-l-2 border-l-amberAccent">
+                <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amberAccent">add_location_alt</span>
+                        Interactive Customer Stop Builder
+                    </h3>
+                    <span class="text-[10px] font-mono text-amberAccent bg-amberAccent/10 px-2 py-0.5 rounded border border-amberAccent/20">User Input Mode</span>
+                </div>
+                <p class="text-[11px] text-slate-400">Add custom stops via form or <b class="text-white">click anywhere on the map</b> to auto-populate coordinates.</p>
+
+                <div class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block font-mono text-slate-300 mb-1">Customer Dock Name:</label>
+                        <input type="text" id="add-name" value="Amazon Fulfillment Hub" placeholder="e.g. Amazon Hub / Hospital Dock" class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-emeraldAccent">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block font-mono text-slate-300 mb-1">TEU Demand:</label>
+                            <input type="number" id="add-demand" min="10" max="350" value="110" class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-cyanAccent">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-300 mb-1">Service Duration (min):</label>
+                            <input type="number" id="add-service" min="15" max="90" value="30" class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-cyanAccent">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block font-mono text-slate-300 mb-1">Earliest Arrival:</label>
+                            <select id="add-earliest" class="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-amberAccent text-xs">
+                                <option value="60">09:00 AM (Shift +1h)</option>
+                                <option value="120" selected>10:00 AM (Shift +2h)</option>
+                                <option value="180">11:00 AM (Shift +3h)</option>
+                                <option value="240">12:00 PM (Shift +4h)</option>
+                                <option value="300">01:00 PM (Shift +5h)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-300 mb-1">Latest Arrival:</label>
+                            <select id="add-latest" class="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-amberAccent text-xs">
+                                <option value="240">12:00 PM (Shift +4h)</option>
+                                <option value="360" selected>02:00 PM (Shift +6h)</option>
+                                <option value="440">03:20 PM (Shift +7.3h)</option>
+                                <option value="540">05:00 PM (Shift +9h)</option>
+                                <option value="660">07:00 PM (Shift +11h)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block font-mono text-slate-300 mb-1">Map X Coordinate (px):</label>
+                            <input type="number" id="add-x" min="30" max="770" value="350" class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-emeraldAccent">
+                        </div>
+                        <div>
+                            <label class="block font-mono text-slate-300 mb-1">Map Y Coordinate (px):</label>
+                            <input type="number" id="add-y" min="30" max="570" value="400" class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-emeraldAccent">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button onclick="addCustomStop()" class="flex-1 py-2 rounded-xl font-mono text-xs font-bold bg-amberAccent text-obsidian shadow-lg hover:bg-amberAccent/90 transition flex items-center justify-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                        + Add Stop & Optimize
+                    </button>
+                    <button onclick="resetScenarioStops()" title="Reset back to prebuilt scenario stops" class="px-3 py-2 rounded-xl font-mono text-xs font-semibold bg-surface hover:bg-roseAccent/20 text-slate-300 hover:text-roseAccent border border-white/10 transition flex items-center justify-center gap-1">
+                        <span class="material-symbols-outlined text-sm">restart_alt</span>
+                        Reset Stops
+                    </button>
+                </div>
+            </div>
+
             <!-- Stop-by-Stop Dispatch & Time-Window Schedule -->
             <div class="glass-card p-5 flex-1 flex flex-col space-y-3 max-h-[520px] overflow-hidden">
                 <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
@@ -286,6 +365,8 @@
         let lastOptimizationResult = null;
         let animationFrameId = null;
         let animationProgress = 0.0;
+        let mapClickMode = false;
+        let originalCustomers = [];
 
         async function init() {
             await loadScenario('corridor');
@@ -314,6 +395,7 @@
                 const resp = await fetch('/api/scenarios');
                 const scenarios = await resp.json();
                 currentScenarioData = scenarios[key];
+                originalCustomers = JSON.parse(JSON.stringify(currentScenarioData.customers));
 
                 document.getElementById('scenario-desc').textContent = currentScenarioData.description;
                 document.getElementById('input-trucks').value = currentScenarioData.num_vehicles;
@@ -585,10 +667,73 @@
                 animationFrameId = requestAnimationFrame(step);
             }
 
-            animationFrameId = requestAnimationFrame(step);
+        function toggleMapClickMode() {
+            mapClickMode = !mapClickMode;
+            const btn = document.getElementById('btn-map-mode');
+            const canvas = document.getElementById('mapCanvas');
+            if (mapClickMode) {
+                btn.innerHTML = `<span class="material-symbols-outlined text-base">add_location_alt</span> Click Map to Add Stop: ON`;
+                btn.className = "px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-amberAccent text-obsidian border border-amberAccent shadow-lg shadow-amberAccent/40 flex items-center gap-1 transition animate-pulse";
+                canvas.style.cursor = "pointer";
+            } else {
+                btn.innerHTML = `<span class="material-symbols-outlined text-base">add_location_alt</span> Click Map to Add Stop: OFF`;
+                btn.className = "px-3 py-1.5 rounded-lg text-xs font-mono font-semibold bg-amberAccent/15 text-amberAccent hover:bg-amberAccent hover:text-obsidian border border-amberAccent/40 flex items-center gap-1 transition";
+                canvas.style.cursor = "crosshair";
+            }
         }
 
-        window.addEventListener('DOMContentLoaded', init);
+        function addCustomStop() {
+            if (!currentScenarioData) return;
+            const name = document.getElementById('add-name').value.trim() || `Custom Stop #${currentScenarioData.customers.length + 1}`;
+            const demand = parseInt(document.getElementById('add-demand').value) || 100;
+            const serviceTime = parseInt(document.getElementById('add-service').value) || 30;
+            const earliest = parseInt(document.getElementById('add-earliest').value) || 120;
+            const latest = parseInt(document.getElementById('add-latest').value) || 360;
+            const x = parseFloat(document.getElementById('add-x').value) || 350;
+            const y = parseFloat(document.getElementById('add-y').value) || 400;
+
+            const newId = currentScenarioData.customers.length > 0 ? Math.max(...currentScenarioData.customers.map(c => c.id)) + 1 : 1;
+
+            currentScenarioData.customers.push({
+                id: newId,
+                name: name,
+                demand: demand,
+                time_window: [earliest, latest],
+                service_time: serviceTime,
+                coords: [x, y]
+            });
+
+            // Auto increment default name for next insertion
+            document.getElementById('add-name').value = `Custom Stop #${currentScenarioData.customers.length + 1}`;
+
+            // Re-optimize and notify
+            reOptimize();
+        }
+
+        function resetScenarioStops() {
+            if (!currentScenarioData || !originalCustomers) return;
+            currentScenarioData.customers = JSON.parse(JSON.stringify(originalCustomers));
+            reOptimize();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            init();
+
+            const canvas = document.getElementById('mapCanvas');
+            canvas.addEventListener('click', function(e) {
+                if (!mapClickMode) return;
+                const rect = this.getBoundingClientRect();
+                const scaleX = this.width / rect.width;
+                const scaleY = this.height / rect.height;
+                const x = Math.round((e.clientX - rect.left) * scaleX);
+                const y = Math.round((e.clientY - rect.top) * scaleY);
+
+                document.getElementById('add-x').value = x;
+                document.getElementById('add-y').value = y;
+
+                addCustomStop();
+            });
+        });
     </script>
 </body>
 </html>

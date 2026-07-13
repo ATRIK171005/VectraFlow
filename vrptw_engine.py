@@ -34,6 +34,7 @@ import time
 import logging
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import routing_enums_pb2
+from database import log_solved_instance
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] [VRPTW Engine] - %(message)s")
 logger = logging.getLogger("VRPTW_Engine")
@@ -178,10 +179,12 @@ class VRPTWSolver:
             end_index = routing.End(v)
             time_dimension.CumulVar(start_index).SetRange(time_windows[0][0], time_windows[0][1])
             time_dimension.CumulVar(end_index).SetRange(time_windows[0][0], time_windows[0][1])
-            routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(start_index))
-            routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(end_index))
+        # 6. Add Disjunctions (Section 4 of Design Guide: Infeasibility Handling via Penalty)
+        penalty = 100000
+        for node_idx in range(1, self.n):
+            routing.AddDisjunction([manager.NodeToIndex(node_idx)], penalty)
 
-        # 6. Search Parameters
+        # 7. Search Parameters
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
         search_parameters.first_solution_strategy = (
             routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
@@ -212,6 +215,7 @@ class VRPTWSolver:
         route_colors = [
             "#00F0A3", "#00E5FF", "#FFB800", "#FF4B72", "#9D4EDD", "#3A86FF", "#38B000"
         ]
+        visited_node_ids = set()
 
         for v in range(self.num_vehicles):
             index = routing.Start(v)
@@ -224,6 +228,7 @@ class VRPTWSolver:
             while not routing.IsEnd(index):
                 node_idx = manager.IndexToNode(index)
                 node_info = self.nodes[node_idx]
+                visited_node_ids.add(node_info["id"])
                 time_var = time_dimension.CumulVar(index)
                 arr_min = solution.Min(time_var)
 
@@ -297,7 +302,18 @@ class VRPTWSolver:
             f"Active Trucks: {len(active_routes)}/{self.num_vehicles}"
         )
 
-        return {
+        dropped_customers = []
+        for cust in self.nodes[1:]:
+            if cust["id"] not in visited_node_ids:
+                dropped_customers.append({
+                    "id": cust["id"],
+                    "name": cust["name"],
+                    "demand_teus": cust["demand"],
+                    "time_window": f"{self._min_to_clock(cust['time_window'][0])} - {self._min_to_clock(cust['time_window'][1])}",
+                    "reason": "Dropped due to tight time window or truck capacity constraints (AddDisjunction penalty triggered)"
+                })
+
+        result = {
             "status": "OPTIMAL",
             "depot_name": self.depot_name,
             "depot_coords": self.depot_coords,
@@ -314,9 +330,16 @@ class VRPTWSolver:
                 "cost_savings_inr": int(cost_savings_inr),
                 "total_load_delivered_teus": int(total_load_delivered),
                 "time_window_compliance_pct": 100.0,
-                "avg_fleet_utilization_pct": float(round(float(np.mean([r["utilization_pct"] for r in active_routes])), 1)) if active_routes else 0.0
+                "avg_fleet_utilization_pct": float(round(float(np.mean([r["utilization_pct"] for r in active_routes])), 1)) if active_routes else 0.0,
+                "dropped_customers_count": len(dropped_customers)
             },
             "routes": active_routes,
             "schedule": stop_schedules,
+            "dropped_customers": dropped_customers,
             "all_nodes": self.nodes
         }
+
+        # Persist to SQLite database (Section 5 of Design Guide)
+        instance_id = log_solved_instance(result)
+        result["instance_id"] = instance_id
+        return result

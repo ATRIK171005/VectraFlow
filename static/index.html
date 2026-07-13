@@ -358,6 +358,64 @@
         </div>
     </div>
 
+    <!-- Dropped Customers Alert (AddDisjunction Infeasibility Handling) -->
+    <div id="dropped-container" class="hidden glass-card p-5 space-y-3 border-l-4 border-roseAccent bg-roseAccent/5">
+        <h3 class="text-base font-bold text-roseAccent flex items-center gap-2 border-b border-roseAccent/20 pb-2">
+            <span class="material-symbols-outlined text-roseAccent">warning</span>
+            Disjunction Triggered — Dropped Customer Stops & Penalty Analysis
+        </h3>
+        <p class="text-xs text-slate-300">
+            To prevent solver crashes on infeasible instances (`Section 4 of Design Guide`), OR-Tools (`AddDisjunction`) dropped the following stops rather than violating strict truck capacity or delivery dock hours:
+        </p>
+        <div id="dropped-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1"></div>
+    </div>
+
+    <!-- Gantt-Style Time-Window Compliance Timeline (Section 3 & 5 of Design Guide) -->
+    <div class="glass-card p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-cyanAccent">bar_chart</span>
+                Stop-by-Stop Gantt Time-Window Compliance Timeline
+            </h3>
+            <span class="text-xs font-mono text-slate-400">Shift Horizon: 08:00 AM (0 min) ➔ 08:00 PM (720 min)</span>
+        </div>
+        <div id="gantt-timeline" class="space-y-4 pt-2">
+            <div class="text-center py-6 text-slate-500 text-xs font-mono">Generating Gantt time-window bars...</div>
+        </div>
+    </div>
+
+    <!-- SQLite Solved Runs History Panel (Section 3 & 5 of Design Guide) -->
+    <div class="glass-card p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-amberAccent">database</span>
+                SQLite Solved Instances Audit Log (`vectraflow_operations.db`)
+            </h3>
+            <button onclick="fetchHistory()" class="px-3 py-1 rounded bg-surface border border-white/10 text-xs text-slate-300 hover:text-white flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">refresh</span> Refresh SQLite DB
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-surface/80 text-slate-400 font-mono text-[11px] border-b border-white/10">
+                    <tr>
+                        <th class="py-2 px-3">Instance #</th>
+                        <th class="py-2 px-3">Timestamp</th>
+                        <th class="py-2 px-3">Depot Hub</th>
+                        <th class="py-2 px-3">Active / Fleet</th>
+                        <th class="py-2 px-3">Total Distance</th>
+                        <th class="py-2 px-3">Freight Cost</th>
+                        <th class="py-2 px-3">Dropped Stops</th>
+                        <th class="py-2 px-3">OR-Tools Solve Time</th>
+                    </tr>
+                </thead>
+                <tbody id="history-rows" class="divide-y divide-white/5 font-mono text-xs">
+                    <tr><td colspan="8" class="text-center py-4 text-slate-500">Loading SQLite records...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Javascript Engine & Canvas Rendering -->
     <script>
         let currentScenarioKey = 'corridor';
@@ -519,7 +577,124 @@
                 `;
                 cardsContainer.appendChild(el);
             });
+
+            renderDroppedStops(data.dropped_customers || []);
+            renderGanttTimeline(data);
+            fetchHistory();
         }
+
+        function renderDroppedStops(dropped) {
+            const container = document.getElementById('dropped-container');
+            const list = document.getElementById('dropped-list');
+            if (!dropped || dropped.length === 0) {
+                container.className = "hidden";
+                return;
+            }
+            container.className = "glass-card p-5 space-y-3 border-l-4 border-roseAccent bg-roseAccent/10 animate-pulse";
+            list.innerHTML = '';
+            dropped.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "p-3 rounded-lg bg-obsidian/80 border border-roseAccent/40 flex items-center justify-between text-xs";
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-roseAccent flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-sm">cancel</span>
+                            <span>Customer #${item.id}: ${item.name}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-300 font-mono mt-0.5">Required Window: <b class="text-white">${item.time_window}</b> | Demand: <b>${item.demand_teus} TEUs</b></div>
+                        <div class="text-[10px] text-rose-300 italic mt-1">${item.reason}</div>
+                    </div>
+                    <span class="px-2 py-1 rounded bg-roseAccent/20 text-roseAccent font-mono font-bold text-[10px] border border-roseAccent/30">PENALTY: ₹1,00,000</span>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function renderGanttTimeline(data) {
+            const container = document.getElementById('gantt-timeline');
+            if (!data.routes || data.routes.length === 0) {
+                container.innerHTML = '<div class="text-center py-6 text-slate-500 text-xs font-mono">No active routes.</div>';
+                return;
+            }
+            container.innerHTML = '';
+            const maxMins = 720; // 12h shift
+
+            data.routes.forEach(route => {
+                const stops = data.schedule.filter(s => s.truck_id === route.vehicle_id);
+                const row = document.createElement('div');
+                row.className = "p-3 rounded-xl bg-surface/90 border border-white/5 space-y-2";
+                
+                let barsHtml = '';
+                stops.forEach(stop => {
+                    // find node to get original time window [e, l]
+                    const node = (data.all_nodes || []).find(n => n.id === stop.customer_id);
+                    const twStart = node ? node.time_window[0] : Math.max(0, stop.arrival_time_min - 30);
+                    const twEnd = node ? node.time_window[1] : (stop.arrival_time_min + 60);
+                    
+                    const leftPct = Math.min(95, Math.max(0, (twStart / maxMins) * 100));
+                    const widthPct = Math.max(3, Math.min(100 - leftPct, ((twEnd - twStart) / maxMins) * 100));
+                    
+                    const arrPct = Math.min(95, Math.max(0, (stop.arrival_time_min / maxMins) * 100));
+                    const servPct = Math.max(1.5, Math.min(100 - arrPct, (stop.service_duration_min / maxMins) * 100));
+
+                    barsHtml += `
+                        <!-- Permitted Time Window Outer Box -->
+                        <div class="absolute h-6 rounded border border-dashed border-white/30 bg-white/5 flex items-center justify-between px-1.5 text-[9px] font-mono text-slate-300" style="left: ${leftPct}%; width: ${widthPct}%; top: 4px;" title="Allowed Window: ${stop.time_window_str}">
+                            <span>${stop.customer_name} [${stop.time_window_str}]</span>
+                        </div>
+                        <!-- Actual Planned Service Block -->
+                        <div class="absolute h-4 rounded shadow-md flex items-center justify-center font-mono font-bold text-[9px] text-obsidian z-10 px-1 overflow-hidden" style="left: ${arrPct}%; width: ${servPct}%; top: 8px; background-color: ${route.color};" title="Arrival: ${stop.arrival_clock} (${stop.service_duration_min}m service)">
+                            ★
+                        </div>
+                    `;
+                });
+
+                row.innerHTML = `
+                    <div class="flex items-center justify-between font-mono text-xs border-b border-white/5 pb-1">
+                        <span class="font-bold flex items-center gap-2" style="color: ${route.color}">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${route.color}"></span>
+                            ${route.vehicle_id} (${stops.length} stops)
+                        </span>
+                        <span class="text-slate-400 text-[11px]">Return: ${route.return_time_clock} | Load: ${route.load_delivered_teus}/${route.capacity_teus} TEUs</span>
+                    </div>
+                    <div class="relative w-full h-8 bg-slate-900/80 rounded-lg overflow-hidden border border-white/5">
+                        ${barsHtml}
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        async function fetchHistory() {
+            try {
+                const resp = await fetch('/api/history');
+                const history = await resp.json();
+                const tbody = document.getElementById('history-rows');
+                if (!history || history.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-slate-500">No solved records in SQLite yet.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                history.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-white/5 transition";
+                    tr.innerHTML = `
+                        <td class="py-2.5 px-3 text-amberAccent font-bold">#${row.instance_id}</td>
+                        <td class="py-2.5 px-3 text-slate-400">${row.timestamp}</td>
+                        <td class="py-2.5 px-3 text-white font-semibold">${row.depot_name}</td>
+                        <td class="py-2.5 px-3 text-cyanAccent">${row.active_trucks} / ${row.num_vehicles} Trucks</td>
+                        <td class="py-2.5 px-3 text-emeraldAccent font-bold">${row.total_distance_km} km</td>
+                        <td class="py-2.5 px-3 text-white">₹ ${row.total_cost_inr.toLocaleString('en-IN')}</td>
+                        <td class="py-2.5 px-3 ${row.dropped_customers_count > 0 ? 'text-roseAccent font-bold' : 'text-slate-400'}">${row.dropped_customers_count} dropped</td>
+                        <td class="py-2.5 px-3 text-slate-400">${row.solve_time_ms} ms</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error("Failed to fetch history:", err);
+            }
+        }
+
 
         function drawMap(data, progress = 0.0) {
             const canvas = document.getElementById('mapCanvas');

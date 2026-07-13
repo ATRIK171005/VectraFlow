@@ -15,6 +15,7 @@ import uvicorn
 import logging
 
 from vrptw_engine import VRPTWSolver
+from database import get_recent_history
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("VectraFlow_Server")
@@ -162,6 +163,12 @@ async def optimize_vrptw(payload: OptimizeRequest):
     except Exception as e:
         logger.error(f"Optimization failure: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Solver engine error: {str(e)}")
+
+
+@app.get("/api/history")
+async def get_history(limit: int = 10):
+    """Returns recent optimization history from SQLite database."""
+    return get_recent_history(limit)
 
 
 if __name__ == "__main__":

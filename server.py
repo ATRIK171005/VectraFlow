@@ -17,11 +17,11 @@ import logging
 from vrptw_engine import VRPTWSolver
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("VRPTW_Server")
+logger = logging.getLogger("VectraFlow_Server")
 
 app = FastAPI(
-    title="VRPTW FTL/LTL Enterprise Logistics Engine",
-    description="Google OR-Tools Dual-Dimension Routing Engine for Full Truckload & Less-Than-Truckload Operations",
+    title="VectraFlow — Enterprise VRPTW FTL/LTL Logistics Engine",
+    description="VectraFlow Google OR-Tools Dual-Dimension Routing Engine for Full Truckload & Less-Than-Truckload Operations",
     version="1.0.0"
 )
 
@@ -165,5 +165,5 @@ async def optimize_vrptw(payload: OptimizeRequest):
 
 
 if __name__ == "__main__":
-    logger.info("Launching VRPTW Enterprise Logistics Server on port 8600...")
+    logger.info("Launching VectraFlow Enterprise Logistics Server on port 8600...")
     uvicorn.run(app, host="0.0.0.0", port=8600)

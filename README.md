@@ -1,4 +1,4 @@
-# 🚛 VRPTW FTL/LTL Enterprise Logistics & Time-Window Dispatch Engine
+# 🚛 VectraFlow OR — FTL/LTL Enterprise Logistics & Time-Window Dispatch Engine
 
 An enterprise-grade **Operations Research** optimization engine solving the **Capacitated Vehicle Routing Problem with Time Windows (VRPTW)** using **Google OR-Tools (`pywrapcp.RoutingModel`)** with **Guided Local Search** metaheuristics.
 

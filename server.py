@@ -120,6 +120,14 @@ async def serve_spa():
     return FileResponse(index_path)
 
 
+@app.get("/dashboard")
+async def serve_dashboard():
+    dashboard_path = os.path.join("static", "dashboard.html")
+    if not os.path.exists(dashboard_path):
+        return JSONResponse({"status": "error", "message": "static/dashboard.html not found"})
+    return FileResponse(dashboard_path)
+
+
 @app.get("/api/status")
 async def get_status():
     return {

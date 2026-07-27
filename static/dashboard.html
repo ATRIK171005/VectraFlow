@@ -368,6 +368,33 @@
                 setToast({ message: "Stops reset to scenario defaults.", type: "info" });
             };
 
+            const handleExportCSV = () => {
+                const logs = [
+                    { id: "VRT-9921", time: "2023-10-24 14:02", hub: "Mumbai-West", fleet: "3/6", dist: "255 km", cost: "₹45,200", dropped: "0", solve: "2000ms" },
+                    { id: "VRT-9920", time: "2023-10-24 12:15", hub: "Delhi-North", fleet: "4/5", dist: "410 km", cost: "₹88,400", dropped: "1", solve: "2400ms" },
+                    { id: "VRT-9919", time: "2023-10-24 10:30", hub: "Bangalore-East", fleet: "2/4", dist: "180 km", cost: "₹32,100", dropped: "0", solve: "1800ms" },
+                    { id: "VRT-9918", time: "2023-10-23 18:45", hub: "Mumbai-West", fleet: "5/6", dist: "520 km", cost: "₹102,500", dropped: "2", solve: "3100ms" },
+                ];
+                
+                const headers = ["Instance ID", "Timestamp", "Depot Hub", "Fleet Active", "Distance", "Cost (INR)", "Dropped", "Solve Time"];
+                const csvRows = [
+                    headers.join(","),
+                    ...logs.map(r => `"${r.id}","${r.time}","${r.hub}","${r.fleet}","${r.dist}","${r.cost}","${r.dropped}","${r.solve}"`)
+                ];
+                
+                const blob = new Blob([csvRows.join("\\n")], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "vectraflow_audit_log.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                setToast({ message: "Audit log exported to CSV successfully.", type: "success" });
+            };
+
             const timeOptions = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
 
             return (
@@ -749,7 +776,9 @@
                         <div className="flex items-center gap-2 mb-4">
                             <Icon name="Database" className="w-4 h-4 text-[#00E5FF]" />
                             <h3 className="text-sm font-bold text-white">SQLite Optimization Audit Log</h3>
-                            <Badge color="cyan" className="ml-auto"><Icon name="Download" className="w-3 h-3" /> Export CSV</Badge>
+                            <button onClick={handleExportCSV} className="ml-auto text-[10px] font-bold px-2 py-1 rounded-md border bg-[#00E5FF]/10 text-[#00E5FF] border-[#00E5FF]/30 flex items-center gap-1 hover:bg-[#00E5FF]/20 transition-colors">
+                                <Icon name="Download" className="w-3 h-3" /> Export CSV
+                            </button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">

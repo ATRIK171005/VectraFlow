@@ -253,7 +253,8 @@
 
         // --- Main App ---
         const App = () => {
-            const [scenario, setScenario] = useState("industrial");
+            const [scenario, setScenario] = useState("corridor");
+            const [scenariosData, setScenariosData] = useState(null);
             const [fleet, setFleet] = useState(4);
             const [capacity, setCapacity] = useState(450);
             const [speed, setSpeed] = useState(55);
@@ -262,6 +263,42 @@
             const [addStopMode, setAddStopMode] = useState(false);
             const [optimizing, setOptimizing] = useState(false);
             const [toast, setToast] = useState(null);
+
+            // Fetch scenarios on mount
+            useEffect(() => {
+                fetch('/api/scenarios')
+                    .then(res => res.json())
+                    .then(data => {
+                        setScenariosData(data);
+                        applyScenario(data, "corridor");
+                    });
+            }, []);
+
+            const applyScenario = (data, key) => {
+                const s = data[key];
+                if (!s) return;
+                setScenario(key);
+                setFleet(s.num_vehicles);
+                setCapacity(s.vehicle_capacity);
+                setSpeed(s.vehicle_speed_kmh);
+                
+                const mappedStops = s.customers.map((c, idx) => {
+                    const eHour = Math.floor(c.time_window[0] / 60) + 8;
+                    const lHour = Math.floor(c.time_window[1] / 60) + 8;
+                    return {
+                        id: c.id,
+                        name: c.name,
+                        x: c.coords[0],
+                        y: c.coords[1],
+                        demand: c.demand,
+                        time: `${eHour.toString().padStart(2, '0')}:00 - ${lHour.toString().padStart(2, '0')}:00`,
+                        truck: (idx % s.num_vehicles) + 1
+                    };
+                });
+                setStops(mappedStops);
+                // We clear previous solver data so the user is forced to re-optimize for the new scenario
+                setSolverData(null);
+            };
             
             // Form State
             const [newStop, setNewStop] = useState({ name: "", demand: "", duration: "", earliest: "08:00", latest: "20:00", x: "", y: "" });
@@ -388,13 +425,13 @@
 
                         <div className="flex flex-wrap gap-2 bg-white/5 p-1.5 rounded-xl border border-white/10">
                             {[
-                                { id: "industrial", label: "National Industrial Corridor", icon: "Factory" },
+                                { id: "corridor", label: "National Industrial Corridor", icon: "Factory" },
                                 { id: "pharma", label: "Cold-Chain Pharma", icon: "Snowflake" },
-                                { id: "ecommerce", label: "Urban Last-Mile Fleet", icon: "ShoppingCart" }
+                                { id: "lastmile", label: "Urban Last-Mile Fleet", icon: "ShoppingCart" }
                             ].map(s => (
                                 <button 
                                     key={s.id}
-                                    onClick={() => setScenario(s.id)}
+                                    onClick={() => scenariosData && applyScenario(scenariosData, s.id)}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scenario === s.id ? 'bg-[#00E5FF] text-[#0A0E17] glow-cyan' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                 >
                                     <Icon name={s.icon} className="w-3.5 h-3.5" />

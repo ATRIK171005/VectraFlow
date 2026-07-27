@@ -804,10 +804,10 @@
                                     <Slider label="Truck Capacity" value={capacity} min={200} max={600} unit="TEUs" onChange={setCapacity} />
                                     <Slider label="Transit Speed" value={speed} min={35} max={85} unit="km/h" onChange={setSpeed} />
                                 </div>
-                                <Button className="w-full" onClick={handleOptimize} disabled={optimizing}>
+                                <StardustButton variant="cosmic" size="md" className="w-full" onClick={handleOptimize} disabled={optimizing}>
                                     <Icon name={optimizing ? "Loader" : "BrainCircuit"} className={`w-4 h-4 ${optimizing ? "animate-spin" : ""}`} />
                                     {optimizing ? "Executing GLS..." : "Execute OR-Tools Guided Local Search"}
-                                </Button>
+                                </StardustButton>
                             </Card>
 
                             <Card className="p-5">
@@ -825,8 +825,8 @@
                                     <Input label="Y Coord" type="number" value={newStop.y} onChange={e => setNewStop({...newStop, y: e.target.value})} placeholder="0-600" />
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button variant="primary" className="flex-1" onClick={handleAddStop}><Icon name="Plus" className="w-4 h-4" /> Add Stop & Optimize</Button>
-                                    <Button variant="danger" onClick={handleResetStops}><Icon name="RotateCcw" className="w-4 h-4" /> Reset</Button>
+                                    <StardustButton variant="nebula" size="md" className="flex-1" onClick={handleAddStop}><Icon name="Plus" className="w-4 h-4" /> Add Stop & Optimize</StardustButton>
+                                    <StardustButton variant="glass" size="md" onClick={handleResetStops}><Icon name="RotateCcw" className="w-4 h-4" /> Reset</StardustButton>
                                 </div>
                             </Card>
 

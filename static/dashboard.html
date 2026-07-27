@@ -484,7 +484,7 @@
                                     style={{ minHeight: '500px' }}
                                     onClick={handleMapClick}
                                 >
-                                    <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${mapSize.w} ${mapSize.h}`} preserveAspectRatio="xMidYMid meet">
+                                    <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${mapSize.w} ${mapSize.h}`} preserveAspectRatio="none">
                                         <defs>
                                             <filter id="glow"><feGaussianBlur stdDeviation="4" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
                                         </defs>
